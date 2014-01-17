@@ -21,6 +21,25 @@ class GrTest extends JUnitTest {
   //import Implicits._
   import regex.{ Mex => Gregex }
 
+  @Test def gregularSimpleMatch(): Unit = {
+    val r = """a(b)c""".gr
+    "abc" match {
+      case r(x) => inspect {
+        "b" == x
+      }
+    }
+  }
+  @Test def gregularOptionalMatch(): Unit = {
+    val r = """a(b)?c""".gr
+    "abc" match {
+      case r(Some(x)) => inspect {
+        "b" == x
+      }
+    }
+    "ac" match {
+      case r(None) =>
+    }
+  }
   @Test def gregularRegexKnowsGroupName(): Unit = {
     val r = """a(?<boo>b)c""".gr
     val m = (r findFirstMatchIn "abc").get

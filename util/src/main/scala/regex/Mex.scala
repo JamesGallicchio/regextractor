@@ -23,37 +23,53 @@ package regex {
 
     /** The regex extractor delegates to the `Regex`
      *  and wraps group values in `Option` as required
-     *  by the desired result `A`.
+     *  by the desired result `A`. `A` must be one of
+     *  `Boolean` for a boolean test that extracts no
+     *  values, `String` or `Option[String]` for one
+     *  value, or some `TupleN[String, Option[String], ...`
+     *  for arbitrary values.
      */
     def regextractor[A: c.WeakTypeTag](c: Context { type PrefixType = { def unapplySeq(s: String): Option[Seq[String]]} })(s: c.Expr[String]) = {
       import c.universe._
+      def mkBooleanTest =
+        q"""
+          new {
+            def unapply(x: String) = ${c.prefix.tree}.unapplySeq(x).nonEmpty
+          }.unapply($s)
+        """
+      def mkUnappliedSeq(got: Tree, defs: List[Tree]) =
+        q"""
+          new {
+            var captured: Option[Seq[String]] = None
+            def isEmpty = captured.isEmpty
+            def get = $got
+            ..$defs
+            def unapply(x: String) = {
+              captured = ${c.prefix.tree}.unapplySeq(x)
+              this
+            }
+          }.unapply($s)
+        """
       val at = implicitly[c.WeakTypeTag[A]]
-      val xs = at.tpe match {
-        //case TypeRef(_, NothingClass, args) =>
-        case zip if at.tpe =:= typeOf[Nothing] => List.empty[Tree]
-        //case one if at.tpe =:= typeOf[String]  =>
-        //case opt if at.tpe =:= typeOf[Option[String]] =>
-        case TypeRef(_, _, args) => args.zipWithIndex map {
-          case (TypeRef(_, _, Nil), i) => // String
-            val m = TermName(s"_${i+1}")
-            q"def $m = captured.get($i)"
-          case (_, i)                  => // Option[String]
-            val m = TermName(s"_${i+1}")
-            q"def $m = Option(captured.get($i))"
-        }
-      }
-      q"""
-        new {
-          var captured: Option[Seq[String]] = None
-          def isEmpty = captured.isEmpty
-          def get = this
-          ..$xs
-          def unapply(x: String) = {
-            captured = ${c.prefix.tree}.unapplySeq(x)
-            this
+      val nodefs = List.empty[Tree]
+      at.tpe match {
+        case zip if at.tpe =:= typeOf[Boolean] =>
+          mkBooleanTest
+        case one if at.tpe =:= typeOf[String]  =>
+          mkUnappliedSeq(q"captured.get.head", nodefs)
+        case opt if at.tpe =:= typeOf[Option[String]] =>
+          mkUnappliedSeq(q"Option(captured.get.head)", nodefs)
+        case TypeRef(_, _, args) =>
+          val ds = args.zipWithIndex map {
+            case (TypeRef(_, _, Nil), i) => // String
+              val m = TermName(s"_${i+1}")
+              q"def $m = captured.get($i)"
+            case (_, i)                  => // Option[String]
+              val m = TermName(s"_${i+1}")
+              q"def $m = Option(captured.get($i))"
           }
-        }.unapply($s)
-      """
+          mkUnappliedSeq(q"this", ds)
+      }
     }
 
     /** For a constant string, gr"s" is the same as "s".gr.
