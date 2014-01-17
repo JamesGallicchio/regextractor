@@ -16,13 +16,10 @@ trait BuildSettings {
     version      := ver,
     scalaVersion := sca,
     scalaHome    := Some(file("/home/apm/clones/scala/build/pack")),
-    resolvers += "Local Maven Repository" at "file://"+hom+"/.m2/repository",
+    resolvers += "Local Maven Repository" at s"file://$hom/.m2/repository",
     scalacOptions ++= Seq(/*"-Xdev",*/ /*"-Ymacro-debug-verbose",*/ /*"-Xprint:typer,uncurry,lambdalift",*/ "-deprecation", "-feature", "-Xlint", "-Xfatal-warnings"),
     libraryDependencies ++= Seq(
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-      //"com.chuusai" %% "shapeless" % "1.2.4",
-      //"org.scalaz" %% "scalaz-core" % "7.0.3"
-      //"com.github.som-snytt" %% "expecty" % "0.9" % "test",
       "com.novocode" % "junit-interface" % "0.10" % "test",
       "junit" % "junit" % "4.10" % "test"
     )
@@ -33,9 +30,10 @@ object RegextractorBuild extends Build with BuildSettings {
 
   lazy val rootSettings = buildSettings
 
-  lazy val support = RootProject(file("../test-support"))
+  //lazy val support = RootProject(file("../test-support"))
+  lazy val support = RootProject(uri("git://github.com/som-snytt/test-support.git"))
 
-  lazy val root = Project("root", file("."), settings = rootSettings) aggregate (core, util) // dependsOn (core, util)
+  lazy val root = Project("root", file("."), settings = rootSettings) aggregate (core, util)
 
   lazy val core = Project("core", file("core"), settings = buildSettings) dependsOn(util, support % "compile->test")
 

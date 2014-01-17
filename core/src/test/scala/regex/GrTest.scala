@@ -68,6 +68,7 @@ class GrTest extends JUnitTest {
     "anything" match {
       //case gr"""a(XYZ)c$boob""" => // DNC
       //case gr"""a(XYZ)c""" => // DNC
+      case _ =>
     }
   }
   @Test def grUnapplies(): Unit = {

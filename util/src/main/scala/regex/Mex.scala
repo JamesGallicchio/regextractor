@@ -72,7 +72,7 @@ package regex {
             new scala.util.matching.Regex($x._1, ($x._2 map (_.name getOrElse null)): _*)
           """
         case other =>
-          c.error(c.prefix.tree.position, s"Unexpected prefix ${showRaw(other)}")
+          c.error(c.prefix.tree.pos, s"Unexpected prefix ${showRaw(other)}")
           *?!
       }
       c.Expr(res)
