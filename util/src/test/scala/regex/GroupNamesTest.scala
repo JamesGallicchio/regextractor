@@ -77,4 +77,13 @@ class GroupNamesTest extends JUnitTest {
       !gs(6).isOption
     }
   }
+  @Test def nestedNamedGroups(): Unit = {
+    val s = "(?<one>hi(?<two>and)bye)"
+    val (r, gs) = Gregex groups s
+    inspect {
+      "(hi(and)bye)" == r
+      Some("one") == gs(0).name
+      Some("two") == gs(1).name
+    }
+  }
 }

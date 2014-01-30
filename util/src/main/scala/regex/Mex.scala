@@ -50,8 +50,9 @@ package regex {
             }
           }.unapply($s)
         """
+      def nodefs = List.empty[Tree]
+      def m(i: Int) = TermName(s"_${i+1}")
       val at = implicitly[c.WeakTypeTag[A]]
-      val nodefs = List.empty[Tree]
       at.tpe match {
         case zip if at.tpe =:= typeOf[Boolean] =>
           mkBooleanTest
@@ -62,11 +63,9 @@ package regex {
         case TypeRef(_, _, args) =>
           val ds = args.zipWithIndex map {
             case (TypeRef(_, _, Nil), i) => // String
-              val m = TermName(s"_${i+1}")
-              q"def $m = captured.get($i)"
+              q"def ${m(i)} = captured.get($i)"
             case (_, i)                  => // Option[String]
-              val m = TermName(s"_${i+1}")
-              q"def $m = Option(captured.get($i))"
+              q"def ${m(i)} = Option(captured.get($i))"
           }
           mkUnappliedSeq(q"this", ds)
       }
@@ -85,7 +84,7 @@ package regex {
           val x = TermName(c.freshName)
           q"""
             val $x = Mex groups $sc.s(..$args)
-            new scala.util.matching.Regex($x._1, ($x._2 map (_.name getOrElse null)): _*)
+            new scala.util.matching.Regex($x._1, $x._2 map (_.name getOrElse null): _*)
           """
         case other =>
           c.error(c.prefix.tree.pos, s"Unexpected prefix ${showRaw(other)}")
@@ -138,6 +137,22 @@ package regex {
                 new {
                   val r = new scala.util.matching.Regex($p)
                   def unapply(x: String): Boolean = r.unapplySeq(x).nonEmpty
+                }.unapply($unargs)
+              """
+            else if (gxs.size == 1)
+              q"""
+                new {
+                  var captured: Option[Seq[String]] = None
+                  def isEmpty = captured.isEmpty
+                  def get = ${
+                    if (gxs.head.isOption) q"Option(captured.get.head)"
+                    else q"captured.get.head"
+                  }
+                  def unapply(x: String) = {
+                    val r = new scala.util.matching.Regex($p)
+                    captured = r.unapplySeq(x)
+                    this
+                  }
                 }.unapply($unargs)
               """
             else
@@ -235,6 +250,7 @@ package regex {
       var inQ = false
       var esc = false
       val stk = Stack.empty[Groupex]
+      val nst = Stack.empty[Groupex]
       var i = 0
       def cur = s(i)
       def next = {
@@ -324,8 +340,19 @@ package regex {
             case RP =>
               put(RP)
               if (stk.isEmpty) *?!
-              val g = stk.pop
-              if (g.isCapture) ns += (g copy (isOption = quantifier._1 == 0))
+              val q = quantifier
+              val p = stk.pop copy (isOption = q._1 == 0)
+              if (stk.isEmpty) {
+                if (nst.nonEmpty) {                 // done nesting
+                  nst push p
+                  var outerOptional = false
+                  while (nst.nonEmpty) {
+                    val g = nst.pop
+                    if (g.isOption) outerOptional = true
+                    if (g.isCapture) ns += g copy (isOption = g.isOption || outerOptional)
+                  }
+                } else if (p.isCapture) ns += p     // no nesting
+              } else nst push p                     // nested
             case c  => put(c)
           }
         }

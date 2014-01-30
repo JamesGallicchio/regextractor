@@ -38,6 +38,48 @@ class GrTest extends JUnitTest {
     }
     "ac" match {
       case r(None) =>
+      case _ => fail("ac")
+    }
+  }
+  @Test def nestedGroups(): Unit = {
+    val r = """a(xy(z))?c""".gr
+    "axyzc" match {
+      case r(Some(xyz), Some(z)) => inspect {
+        "xyz" == xyz
+        "z" == z
+      }
+    }
+    "ac" match {
+      case r(None, _) =>
+      case _ => fail("Bad ac")
+    }
+    "axyzc" match {
+      case gr"a${Some(xyz)}(xy${Some(z)}(z))?c" => inspect {
+        "xyz" == xyz
+        "z" == z
+      }
+    }
+    "ac" match {
+      case gr"a${Some(_)}(xy$_(z))?c" => fail("Bad ac")
+      case gr"a$None(xy$_(z))?c" =>
+      case _ => fail("Bad ac")
+    }
+  }
+  @Test def nestedOptionalMatch(): Unit = {
+    val r = """a(xy(z))?c""".gr
+    "axyzc" match {
+      case r(Some(xyz), Some(z)) => inspect {
+        "xyz" == xyz
+        "z" == z
+      }
+    }
+  }
+  @Test def nestedInNoncapturingOptional(): Unit = {
+    val r = """a(?:xy(z))?c""".gr
+    "axyzc" match {
+      case r(Some(z)) => inspect {
+        "z" == z
+      }
     }
   }
   @Test def gregularRegexKnowsGroupName(): Unit = {
@@ -112,6 +154,33 @@ class GrTest extends JUnitTest {
         None == c_?
       }
       case _ => fail(s"bad outcome")
+    }
+  }
+  @Test def grPlainRegex(): Unit = {
+    val prefix = "abc"
+    val suffix = "xyz"
+    val r = gr"$prefix(?:klm)$suffix" // s"$prefix(?:klm)$suffix".r
+    val m = (r findFirstMatchIn "abcklmxyz").get
+    inspect {
+      "abcklmxyz" == m.matched
+    }
+    val g = gr"$prefix(?<k>klm)$suffix"
+    val n = (g findFirstMatchIn "abcklmxyz").get
+    inspect {
+      "klm" == (n group "k")
+    }
+  }
+  @Test def otherExtractions(): Unit = {
+    import util.Try
+    object ExInt {
+      def unapply(s: String): Option[Int] = Try(s.toInt).toOption
+    }
+    val res = "123" match {
+      case gr"""${ExInt(i)}(\d+)""" => i
+      case _ => -1
+    }
+    inspect {
+      123 == res
     }
   }
 }
