@@ -24,8 +24,7 @@ package regex {
   import scala.language.experimental.macros
   import scala.util.matching.Regex
 
-  /** Group-aware regex.
-   */
+  /** Group-aware regex. */
   class Gregex[A](regex: String, groups: String*) extends Regex(regex, groups: _*) {
 
     /** Regextractor!

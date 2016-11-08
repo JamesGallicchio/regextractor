@@ -1,15 +1,39 @@
 
 package regex {
-  import scala.language.experimental.macros
   //import scala.reflect.macros.{ WhiteboxContext => Context }
+  import scala.language.experimental.macros
+
+  import scala.reflect.internal.SymbolTable
   import scala.reflect.macros.whitebox.Context
-  import scala.util.matching.Regex
   import scala.collection.mutable.{ ListBuffer, Stack }
   import java.util.regex.{ Pattern, PatternSyntaxException }
 
-  /** Support for group-aware regex.
-   */
+  /** Support for group-aware regex. */
   private[regex] object Mex {
+
+    def patternCompile(c: Context)(patternString: c.universe.Literal): c.Tree = {
+      def Indy(bootstrapMethod: c.Symbol, bootstrapArg: c.universe.Literal): c.Tree = {
+        val symtab = c.universe.asInstanceOf[SymbolTable]
+        import symtab._
+        val paramSym = NoSymbol.newTermSymbol(TermName("x")).setInfo(typeOf[CharSequence])
+        val dummySymbol = NoSymbol.newTermSymbol(TermName("matcher")).setInfo(internal.methodType(paramSym :: Nil, typeOf[java.util.regex.Pattern]))
+        val bootstrapArgTrees: List[Tree] = Literal(Constant(bootstrapMethod)).setType(NoType) :: bootstrapArg.asInstanceOf[Tree] :: Nil
+        val result = ApplyDynamic(Ident(dummySymbol).setType(dummySymbol.info), bootstrapArgTrees)
+        result.setType(dummySymbol.info.resultType)
+        result.asInstanceOf[c.Tree]
+      }
+      import c.universe._
+      patternString match {
+        case constPatternString @ Literal(const @ Constant(pat: String)) =>
+          val boostrapSym = typeOf[Bootstrap].companion.member(TermName("bootstrap"))
+          println("Creating Indy!")
+          constPatternString.tpe = ConstantType(const)
+          val result = Indy(boostrapSym, constPatternString)
+          println("Created Indy!")
+          result
+        case _ => ???
+      }
+    }
 
     type BadPat = IllegalStateException
     private[this] def *?! = throw new IllegalStateException
@@ -163,7 +187,8 @@ package regex {
                   def get = this
                   ..$xs
                   def unapply(x: String) = {
-                    val r = new scala.util.matching.Regex($p)
+                    val regexPatternConstructor = classOf[scala.util.matching.Regex].getDeclaredConstructor(classOf[java.util.regex.Pattern], classOf[scala.Seq[String]])
+                    val r = regexPatternConstructor.newInstance(${patternCompile(c)(p)}, Seq.empty)
                     captured = r.unapplySeq(x)
                     this
                   }
